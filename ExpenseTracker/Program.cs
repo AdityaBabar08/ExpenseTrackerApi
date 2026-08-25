@@ -1,6 +1,10 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text;
 using ExpenseTracker.Data;
+using ExpenseTracker.Dtos;
+using ExpenseTracker.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
@@ -43,7 +47,33 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapPost("/register", async (RegisterUserDto registerUser, AppDbContext dbContext) =>
+{
 
+    if (await dbContext.Users.AnyAsync(u => u.UserName == registerUser.Username || u.Email == registerUser.Email))
+    {
+        return Results.Conflict("User already exists");
+    }
+
+    var newUser = new User
+    {
+        UserName = registerUser.Username,
+        Email = registerUser.Email,
+        PasswordHash = BCrypt.Net.BCrypt.HashPassword(registerUser.Password),
+
+    };
+
+    await dbContext.Users.AddAsync(newUser);
+    await dbContext.SaveChangesAsync();
+
+    return Results.Ok(new ResponseUserDto
+    {
+        Id = newUser.UserId,
+        Username = newUser.UserName,
+        Email = newUser.Email
+
+    });
+
+});
 
 app.Run();
-
