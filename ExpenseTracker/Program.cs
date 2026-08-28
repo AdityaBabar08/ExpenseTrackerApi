@@ -118,4 +118,33 @@ app.MapPost("/login", async (LoginDto loginDto, AppDbContext dbContext, IConfigu
 
 });
 
+
+//-----------------Category Endpoints----------------//
+
+app.MapGet("/categories", async (AppDbContext dbContext, ClaimsPrincipal user) =>
+{
+    int userId = int.Parse(user.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+    var query = dbContext.Categories.Where(t => t.UserId == userId);
+    return await query.ToListAsync();
+}).RequireAuthorization();
+
+app.MapPost ("/categories", async (CategoryCreateDto categoryCreateDto, AppDbContext dbContext, ClaimsPrincipal user) =>
+{
+    int userId = int.Parse(user.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+    bool exist = await dbContext.Categories.AnyAsync(c => c.Name.ToLower() == categoryCreateDto.CategoryName.ToLower() && c.UserId == userId);
+    if (exist)
+    {
+       return Results.Conflict("Category already exist");
+    }
+    Category newCategory = new()
+    {
+       Name = categoryCreateDto.CategoryName,
+       UserId = userId
+    };
+    await dbContext.Categories.AddAsync(newCategory);
+    await dbContext.SaveChangesAsync();
+    return Results.Created($"/categories/{newCategory.CategoryId}", newCategory);
+
+}).RequireAuthorization();
+
 app.Run();
