@@ -128,22 +128,38 @@ app.MapGet("/categories", async (AppDbContext dbContext, ClaimsPrincipal user) =
     return await query.ToListAsync();
 }).RequireAuthorization();
 
-app.MapPost ("/categories", async (CategoryCreateDto categoryCreateDto, AppDbContext dbContext, ClaimsPrincipal user) =>
+app.MapPost("/categories", async (CategoryCreateDto categoryCreateDto, AppDbContext dbContext, ClaimsPrincipal user) =>
 {
     int userId = int.Parse(user.FindFirst(ClaimTypes.NameIdentifier)!.Value);
     bool exist = await dbContext.Categories.AnyAsync(c => c.Name.ToLower() == categoryCreateDto.CategoryName.ToLower() && c.UserId == userId);
     if (exist)
     {
-       return Results.Conflict("Category already exist");
+        return Results.Conflict("Category already exist");
     }
     Category newCategory = new()
     {
-       Name = categoryCreateDto.CategoryName,
-       UserId = userId
+        Name = categoryCreateDto.CategoryName,
+        UserId = userId
     };
     await dbContext.Categories.AddAsync(newCategory);
     await dbContext.SaveChangesAsync();
     return Results.Created($"/categories/{newCategory.CategoryId}", newCategory);
+
+}).RequireAuthorization();
+
+app.MapPatch("/categories/{id}", async (int id, CategoryUpdateDto categoryUpdateDto, AppDbContext dbContext, ClaimsPrincipal user) =>
+{
+
+    int userId = int.Parse(user.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+    var existingCategory = await dbContext.Categories.FirstOrDefaultAsync(c => c.CategoryId == id && c.UserId == userId);
+    if (existingCategory is null)
+    {
+        return Results.NotFound("Category of this Id not found or doesn't exist");
+    }
+    existingCategory.Name = categoryUpdateDto.UpdatedCategory;
+
+    await dbContext.SaveChangesAsync();
+    return Results.Ok("Category updated successfully");
 
 }).RequireAuthorization();
 
