@@ -163,4 +163,19 @@ app.MapPatch("/categories/{id}", async (int id, CategoryUpdateDto categoryUpdate
 
 }).RequireAuthorization();
 
+app.MapDelete("/categories/{id}", async (int id, AppDbContext dbContext, ClaimsPrincipal user) =>
+{
+    int userId = int.Parse(user.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+    var existingCategory = await dbContext.Categories.FirstOrDefaultAsync(c => c.CategoryId == id && c.UserId == userId);
+    if (existingCategory is null)
+    {
+        return Results.NotFound("Category of this Id not found or doesn't exist");
+    }
+    dbContext.Categories.Remove(existingCategory);
+
+    await dbContext.SaveChangesAsync();
+    return Results.NoContent();
+
+}).RequireAuthorization();
+
 app.Run();
