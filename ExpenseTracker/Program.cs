@@ -45,11 +45,14 @@ app.UseAuthorization();
 
 
 
-//-----------------Auth Endpoints----------------//
+//-----------------Auth Endpoints---------------------//
 app.MapAuthEndpoints();
 
 //-----------------Category Endpoints----------------//
 app.MapCategoryEndpoints();
+
+//-----------------Expense Endpoints----------------//
+app.MapExpenseEndpoints();
 
 
 app.Run();
