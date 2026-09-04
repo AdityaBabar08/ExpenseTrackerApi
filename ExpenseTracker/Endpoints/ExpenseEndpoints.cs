@@ -103,10 +103,99 @@ public static class ExpenseEndpoints
             });
         });
 
-        // group.MapPatch()
+        group.MapPatch("/{id:int}", async (int id, UpdateExpenseDto updateDto, ClaimsPrincipal user, AppDbContext dbContext) =>
+        {
+            var claim = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (claim is null)
+                return Results.Unauthorized();
 
+            int userId = int.Parse(claim);
+            var expense = await dbContext.Expenses
+                .Include(e => e.Category)
+                .FirstOrDefaultAsync(e => e.ExpenseId == id && e.UserId == userId);
 
+            if (expense is null)
+                return Results.NotFound();
 
+            if (updateDto.CategoryId.HasValue)
+            {
+                var category = await dbContext.Categories
+                    .FirstOrDefaultAsync(c => c.CategoryId == updateDto.CategoryId.Value && c.UserId == userId);
 
+                if (category is null)
+                    return Results.BadRequest($"Category '{updateDto.CategoryId}' does not exist.");
+
+                expense.CategoryId = category.CategoryId;
+                expense.Category = category;
+            }
+
+            if (updateDto.Title is not null) expense.Title = updateDto.Title;
+            if (updateDto.Description is not null) expense.Description = updateDto.Description;
+            if (updateDto.Amount.HasValue) expense.Amount = updateDto.Amount.Value;
+            if (updateDto.ExpenseDate.HasValue) expense.ExpenseDate = updateDto.ExpenseDate.Value;
+
+            await dbContext.SaveChangesAsync();
+
+            return Results.Ok(new ExpenseResponseDto
+            {
+                ExpenseId = expense.ExpenseId,
+                Title = expense.Title,
+                Description = expense.Description,
+                Amount = expense.Amount,
+                ExpenseDate = expense.ExpenseDate,
+                CreatedAt = expense.CreatedAt,
+                CategoryName = expense.Category.Name
+            });
+        });
+
+        group.MapDelete("/{id:int}", async (int id, ClaimsPrincipal user, AppDbContext dbContext) =>
+        {
+            var claim = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (claim is null)
+                return Results.Unauthorized();
+
+            int userId = int.Parse(claim);
+            var expense = await dbContext.Expenses
+                .FirstOrDefaultAsync(e => e.ExpenseId == id && e.UserId == userId);
+
+            if (expense is null)
+                return Results.NotFound();
+
+            dbContext.Expenses.Remove(expense);
+            await dbContext.SaveChangesAsync();
+
+            return Results.NoContent();
+        });
+
+        group.MapGet("/summary", async (string? category, DateTime? startdate, DateTime? enddate, ClaimsPrincipal user, AppDbContext dbContext) =>
+        {
+            var claim = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (claim is null)
+                return Results.Unauthorized();
+
+            int userId = int.Parse(claim);
+            var query = dbContext.Expenses.Where(e => e.UserId == userId);
+
+            if (category is not null)
+                query = query.Where(e => e.Category.Name == category);
+
+            if (startdate.HasValue)
+                query = query.Where(e => e.ExpenseDate >= startdate.Value.ToUniversalTime());
+
+            if (enddate.HasValue)
+                query = query.Where(e => e.ExpenseDate <= enddate.Value.ToUniversalTime());
+
+            var total = await query.SumAsync(e => e.Amount);
+            var count = await query.CountAsync();
+
+            return Results.Ok(new
+            {
+                TotalAmount = total,
+                ExpenseCount = count,
+                Category = category,
+                StartDate = startdate,
+                EndDate = enddate
+            });
+        });
     }
 }
